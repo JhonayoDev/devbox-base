@@ -54,6 +54,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   tmux \
   htop \
   jq \
+  iptables \
+  && update-alternatives --set iptables /usr/sbin/iptables-nft \
+  && update-alternatives --set ip6tables /usr/sbin/ip6tables-nft \
   && rm -rf /var/lib/apt/lists/*
 
 # Symlinks de nombres alternativos en Ubuntu
