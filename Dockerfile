@@ -22,7 +22,7 @@ FROM ubuntu:24.04
 ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=1000
-ARG NVIM_VERSION=v0.11.0
+ARG NVIM_VERSION=latest 
 
 # ─── Sistema base ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
