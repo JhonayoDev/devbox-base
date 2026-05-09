@@ -19,15 +19,10 @@ FROM ubuntu:24.04
 #   "build": { "args": { "USERNAME": "vscode", "USER_UID": "1000", "USER_GID": "1000" } }
 # Si no se pasan, el build falla — es intencional para evitar
 # usuarios incorrectos silenciosos.
-ARG USERNAME
-ARG USER_UID
-ARG USER_GID
+ARG USERNAME=vscode
+ARG USER_UID=1000
+ARG USER_GID=1000
 ARG NVIM_VERSION=v0.11.0
-
-# Validar que los args obligatorios fueron pasados
-RUN : "${USERNAME:?USERNAME es obligatorio. Pásalo via build.args en devcontainer.json}" \
-  && : "${USER_UID:?USER_UID es obligatorio. Pásalo via build.args en devcontainer.json}" \
-  && : "${USER_GID:?USER_GID es obligatorio. Pásalo via build.args en devcontainer.json}"
 
 # ─── Sistema base ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \

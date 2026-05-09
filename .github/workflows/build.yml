@@ -41,7 +41,7 @@ jobs:
             type=sha
 
       - name: Build and push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           push: true
@@ -49,3 +49,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Pasar ARGs con valores default para el build de la imagen
+          build-args: |
+            USERNAME=vscode
+            USER_UID=1000
+            USER_GID=1000
