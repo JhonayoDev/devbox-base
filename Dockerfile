@@ -1,35 +1,47 @@
 # ─────────────────────────────────────────────────────────────
-#  devbox-base — imagen base genérica
+#  devbox-base — imagen base genérica para devcontainers
 #
 #  Contiene SOLO herramientas comunes independientes de lenguaje:
-#  SO, zsh, nvim, git, utilidades de terminal.
+#  SO, zsh + OMZ + plugins, nvim, lazygit, utilidades de terminal.
 #
-#  NO contiene: Java, Node, Flutter, Python ni ningún SDK.
-#  Esas responsabilidades son de devbox-features.
+#  NO contiene: Java, Node, Flutter, Python SDK ni ningún runtime.
+#  Esas responsabilidades son de las devcontainer features.
+#
+#  NO contiene: configuración personal (.zshrc, temas, nvim config).
+#  Esas responsabilidades son de los dotfiles via DevPod.
 #
 #  Publicada en: ghcr.io/jhonayodev/devbox-base:latest
 # ─────────────────────────────────────────────────────────────
 FROM ubuntu:24.04
 
-# ─── Build args ───────────────────────────────────────────────
-# Todos los valores vienen de afuera — esta imagen no tiene
-# nada hardcodeado específico de un usuario o entorno.
-ARG USERNAME=user
-ARG USER_UID=1000
-ARG USER_GID=1000
-ARG NVIM_VERSION=v0.11.6
+# ─── Build args — obligatorios, sin default intencional ───────
+# Cada proyecto debe pasarlos explícitamente en devcontainer.json:
+#   "build": { "args": { "USERNAME": "vscode", "USER_UID": "1000", "USER_GID": "1000" } }
+# Si no se pasan, el build falla — es intencional para evitar
+# usuarios incorrectos silenciosos.
+ARG USERNAME
+ARG USER_UID
+ARG USER_GID
+ARG NVIM_VERSION=v0.11.0
+
+# Validar que los args obligatorios fueron pasados
+RUN : "${USERNAME:?USERNAME es obligatorio. Pásalo via build.args en devcontainer.json}" \
+  && : "${USER_UID:?USER_UID es obligatorio. Pásalo via build.args en devcontainer.json}" \
+  && : "${USER_GID:?USER_GID es obligatorio. Pásalo via build.args en devcontainer.json}"
 
 # ─── Sistema base ─────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  # SSH
-  openssh-server \
   # Build tools — make requerido por nvim-treesitter para compilar parsers
   build-essential \
   make \
   libssl-dev \
   libffi-dev \
   # Utilidades esenciales
-  curl wget git unzip zip \
+  curl \
+  wget \
+  git \
+  unzip \
+  zip \
   ca-certificates \
   gnupg \
   locales \
@@ -44,23 +56,22 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   fzf \
   tree \
   bat \
-  xclip xsel \
-  # Python base: requerido por algunos plugins de nvim
-  python3 python3-pip python3-venv \
+  xclip \
+  xsel \
+  # Python base: requerido por algunos plugins de nvim y Mason
+  python3 \
+  python3-pip \
+  python3-venv \
   # Zsh
   zsh \
   fontconfig \
+  stow \
   # Utilidades extra
-  tmux \
   htop \
   jq \
-  iptables \
-  && update-alternatives --set iptables /usr/sbin/iptables-nft \
-  && update-alternatives --set ip6tables /usr/sbin/ip6tables-nft \
   && rm -rf /var/lib/apt/lists/*
 
 # Symlinks de nombres alternativos en Ubuntu
-# fd-find se instala como fdfind — bat en Ubuntu 24.04 ya se llama bat
 RUN ln -sf /usr/bin/fdfind /usr/local/bin/fd
 
 # ─── Locale UTF-8 ─────────────────────────────────────────────
@@ -69,10 +80,10 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US:en
 ENV LC_ALL=en_US.UTF-8
 
-# ─── Crear usuario ─────────────────────────────────────────────
+# ─── Crear usuario ────────────────────────────────────────────
 # Ubuntu 24.04 trae el usuario "ubuntu" por defecto — lo eliminamos
-# para evitar conflictos de UID con el usuario custom.
-# Shell = zsh para que el .zshrc de dotfiles funcione correctamente.
+# para evitar conflictos de UID.
+# Shell = zsh desde la creación del usuario.
 RUN userdel -r ubuntu 2>/dev/null || true \
   && groupadd --gid $USER_GID $USERNAME \
   && useradd --uid $USER_UID --gid $USER_GID -m -s /usr/bin/zsh $USERNAME \
@@ -88,7 +99,6 @@ RUN curl -LO "https://github.com/neovim/neovim/releases/download/${NVIM_VERSION}
   && rm nvim-linux-x86_64.tar.gz
 
 # ─── lazygit ──────────────────────────────────────────────────
-# Requerido por Snacks.nvim (<leader>gg abre lazygit como terminal)
 RUN LAZYGIT_VERSION=$(curl -s https://api.github.com/repos/jesseduffield/lazygit/releases/latest \
   | grep '"tag_name"' | cut -d'"' -f4 | sed 's/v//') \
   && curl -Lo /tmp/lazygit.tar.gz \
@@ -97,24 +107,17 @@ RUN LAZYGIT_VERSION=$(curl -s https://api.github.com/repos/jesseduffield/lazygit
   && install /tmp/lazygit /usr/local/bin/lazygit \
   && rm -f /tmp/lazygit /tmp/lazygit.tar.gz
 
-# ─── SSH ───────────────────────────────────────────────────────
-RUN mkdir /var/run/sshd \
-  && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
-  && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config \
-  && echo "AllowUsers $USERNAME" >> /etc/ssh/sshd_config
-
 # ─── A partir de acá todo como el usuario ─────────────────────
 USER $USERNAME
 WORKDIR /home/$USERNAME
-
 ENV HOME=/home/$USERNAME
 ENV USER=$USERNAME
 
-# ─── Oh My Zsh ────────────────────────────────────────────────
-# RUNZSH=no evita que el installer intente lanzar zsh al terminar
+# ─── Oh My Zsh + plugins + powerlevel10k ──────────────────────
+# Instalados en la imagen — son infraestructura, no configuración.
+# La configuración personal (.zshrc, tema activo) viene de dotfiles.
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 
-# Plugins declarados en el .zshrc
 RUN git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-autosuggestions" \
   && git clone --depth=1 https://github.com/zsh-users/zsh-syntax-highlighting \
@@ -123,9 +126,3 @@ RUN git clone --depth=1 https://github.com/zsh-users/zsh-autosuggestions \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/plugins/zsh-completions" \
   && git clone --depth=1 https://github.com/romkatv/powerlevel10k.git \
   "${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k"
-
-# ─── SSH keys del usuario ──────────────────────────────────────
-RUN mkdir -p ~/.ssh && chmod 700 ~/.ssh
-
-EXPOSE 22
-
