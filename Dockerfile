@@ -42,6 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   locales \
   tzdata \
   sudo \
+  openssh-client \
   # tar + gzip: Mason los usa para descomprimir binarios de LSPs
   tar \
   gzip \
